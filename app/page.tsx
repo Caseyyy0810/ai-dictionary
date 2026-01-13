@@ -150,7 +150,11 @@ export default function Home() {
       }
       const updatedNotebook = [...notebook, newEntry]
       setNotebook(updatedNotebook)
-      setSavedEntryIds((prev) => new Set([...prev, entryId]))
+      setSavedEntryIds((prev) => {
+        const next = new Set(prev)
+        next.add(entryId)
+        return next
+      })
       
       // Show confirmation
       console.log('Saved to notebook:', newEntry.word)
