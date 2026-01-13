@@ -63,7 +63,7 @@ export default function StoryModal({
           {!story ? (
             <div className="text-center py-12">
               <p className="text-gray-700 text-lg mb-6">
-                I'll create a fun story using your saved words to help you
+                I&apos;ll create a fun story using your saved words to help you
                 remember them!
               </p>
               <button
