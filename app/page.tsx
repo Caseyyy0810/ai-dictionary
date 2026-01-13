@@ -7,8 +7,6 @@ import SearchInput from './components/SearchInput'
 import ResultCard from './components/ResultCard'
 import Notebook from './components/Notebook'
 import { DictionaryEntry, NotebookEntry } from './types'
-import { saveNotebook, loadNotebook, saveLanguage, loadLanguage, exportNotebook, importNotebook } from './utils/storage'
-import NotionSettings from './components/NotionSettings'
 
 export default function Home() {
   const [nativeLanguage, setNativeLanguage] = useState('en') // User's native language (for explanations)
@@ -19,41 +17,52 @@ export default function Home() {
   const [detectingLanguage, setDetectingLanguage] = useState(false)
   const [notebook, setNotebook] = useState<NotebookEntry[]>([])
   const [showNotebook, setShowNotebook] = useState(false)
-  const [showNotionSettings, setShowNotionSettings] = useState(false)
   const [savedEntryIds, setSavedEntryIds] = useState<Set<string>>(new Set())
 
-  // Load notebook and preferences from IndexedDB/localStorage
+  // Load notebook and preferences from localStorage
   useEffect(() => {
-    // Load notebook from IndexedDB
-    loadNotebook().then((notebookData) => {
-      if (notebookData && notebookData.length > 0) {
-        setNotebook(notebookData)
-        setSavedEntryIds(new Set(notebookData.map((e: NotebookEntry) => e.id)))
+    // Load notebook
+    const savedNotebook = localStorage.getItem('notebook')
+    if (savedNotebook) {
+      try {
+        const parsed = JSON.parse(savedNotebook)
+        // Convert savedAt strings back to Date objects
+        const notebookWithDates = parsed.map((e: any) => ({
+          ...e,
+          savedAt: e.savedAt ? new Date(e.savedAt) : new Date(),
+        }))
+        setNotebook(notebookWithDates)
+        setSavedEntryIds(new Set(notebookWithDates.map((e: NotebookEntry) => e.id)))
+      } catch (error) {
+        console.error('Error loading notebook:', error)
       }
-    }).catch((error) => {
-      console.error('Error loading notebook:', error)
-    })
+    }
 
     // Load language preference
-    const savedLang = loadLanguage()
-    if (savedLang) {
-      setNativeLanguage(savedLang)
+    const savedLanguage = localStorage.getItem('nativeLanguage')
+    if (savedLanguage) {
+      setNativeLanguage(savedLanguage)
     }
   }, [])
 
-  // Save notebook to IndexedDB and auto-backup to file whenever it changes
+  // Save notebook to localStorage whenever it changes
   useEffect(() => {
     if (notebook.length >= 0) {
-      saveNotebook(notebook).catch((error) => {
+      try {
+        localStorage.setItem('notebook', JSON.stringify(notebook))
+      } catch (error) {
         console.error('Error saving notebook:', error)
-        alert('保存数据时出错，请检查浏览器存储空间')
-      })
+        // If storage is full, try to clear old entries
+        if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+          alert('Storage is full. Please delete some old entries.')
+        }
+      }
     }
   }, [notebook])
 
   // Save language preference
   useEffect(() => {
-    saveLanguage(nativeLanguage)
+    localStorage.setItem('nativeLanguage', nativeLanguage)
   }, [nativeLanguage])
 
   const handleSearch = async (searchQuery: string) => {
@@ -164,30 +173,51 @@ export default function Home() {
   }
 
   // Export notebook data
-  const handleExportNotebook = async () => {
+  const handleExportNotebook = () => {
     try {
-      await exportNotebook(notebook)
+      const dataStr = JSON.stringify(notebook, null, 2)
+      const dataBlob = new Blob([dataStr], { type: 'application/json' })
+      const url = URL.createObjectURL(dataBlob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `notebook-${new Date().toISOString().split('T')[0]}.json`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
     } catch (error) {
       console.error('Error exporting notebook:', error)
-      alert('导出失败，请重试')
+      alert('Failed to export notebook')
     }
   }
 
   // Import notebook data
-  const handleImportNotebook = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportNotebook = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
-    try {
-      const imported = await importNotebook(file)
-      setNotebook(imported)
-      setSavedEntryIds(new Set(imported.map((e: NotebookEntry) => e.id)))
-      alert(`成功导入 ${imported.length} 个单词`)
-    } catch (error: any) {
-      console.error('Error importing notebook:', error)
-      alert(`导入失败: ${error.message || '文件格式错误'}`)
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const imported = JSON.parse(e.target?.result as string)
+        if (Array.isArray(imported)) {
+          // Convert savedAt strings back to Date objects
+          const importedWithDates = imported.map((e: any) => ({
+            ...e,
+            savedAt: e.savedAt ? new Date(e.savedAt) : new Date(),
+          }))
+          setNotebook(importedWithDates)
+          setSavedEntryIds(new Set(importedWithDates.map((e: NotebookEntry) => e.id)))
+          alert(`Successfully imported ${importedWithDates.length} entries`)
+        } else {
+          alert('Invalid file format')
+        }
+      } catch (error) {
+        console.error('Error importing notebook:', error)
+        alert('Failed to import notebook. Please check the file format.')
+      }
     }
-    
+    reader.readAsText(file)
     // Reset input
     event.target.value = ''
   }
@@ -239,21 +269,14 @@ export default function Home() {
           <SearchInput onSearch={handleSearch} isLoading={loading} />
         </div>
 
-        {/* Notebook and Notion Buttons */}
-        <div className="flex justify-center gap-2 mb-4">
+        {/* Notebook Button */}
+        <div className="flex justify-center mb-4">
           <button
             onClick={() => setShowNotebook(true)}
             className="px-4 py-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white rounded-lg font-semibold transition-all shadow-lg flex items-center gap-2 text-sm"
           >
             <BookOpen size={16} />
             Notebook ({notebook.length})
-          </button>
-          <button
-            onClick={() => setShowNotionSettings(true)}
-            className="px-4 py-2 bg-purple-500/80 hover:bg-purple-600/80 backdrop-blur-sm text-white rounded-lg font-semibold transition-all shadow-lg flex items-center gap-2 text-sm"
-            title="Notion Integration"
-          >
-            📝 Notion
           </button>
         </div>
 
@@ -301,18 +324,6 @@ export default function Home() {
           onImport={handleImportNotebook}
           nativeLanguage={nativeLanguage}
           targetLanguage={targetLanguage}
-        />
-      )}
-
-      {/* Notion Settings Modal */}
-      {showNotionSettings && (
-        <NotionSettings
-          onClose={() => setShowNotionSettings(false)}
-          onSync={(entries) => {
-            setNotebook(entries)
-            setSavedEntryIds(new Set(entries.map((e: NotebookEntry) => e.id)))
-            setShowNotionSettings(false)
-          }}
         />
       )}
     </main>
