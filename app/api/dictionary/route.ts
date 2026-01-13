@@ -1,34 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { GoogleGenerativeAI } from '@google/generative-ai'
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || '')
+// Helper function to call DeepSeek API
+async function callDeepSeek(prompt: string, apiKey: string): Promise<string> {
+  const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'deepseek-chat',
+      messages: [
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.7,
+      max_tokens: 1000,
+    }),
+  })
 
-// Try to get available models first
-async function getAvailableModelName(apiKey: string): Promise<string> {
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models?key=${apiKey}`
-    )
-    
-    if (response.ok) {
-      const data = await response.json()
-      const models = data.models?.filter((m: any) => 
-        m.supportedGenerationMethods?.includes('generateContent')
-      ) || []
-      
-      if (models.length > 0) {
-        // Get the first available model name (without the full path)
-        const modelName = models[0].name.split('/').pop()
-        console.log(`Found available model: ${modelName}`)
-        return modelName || 'gemini-pro'
-      }
-    }
-  } catch (error) {
-    console.error('Error fetching models list:', error)
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`DeepSeek API Error: ${response.status} - ${errorText}`)
   }
-  
-  // Fallback model names to try
-  return 'gemini-pro'
+
+  const data = await response.json()
+  return data.choices?.[0]?.message?.content || ''
 }
 
 export async function POST(request: NextRequest) {
@@ -42,10 +41,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const apiKey = process.env.GOOGLE_AI_API_KEY
+    const apiKey = process.env.DEEPSEEK_API_KEY
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'Google AI API key not configured' },
+        { error: 'DeepSeek API key not configured. Please set DEEPSEEK_API_KEY in .env.local' },
         { status: 500 }
       )
     }
@@ -70,101 +69,25 @@ Format as JSON:
 
 Be concise, lively, and get straight to the point. No greetings or fillers. Always respond with valid JSON only.`
 
+    const text = await callDeepSeek(definitionPrompt, apiKey)
+    
     let content: any = null
-    let lastError: any = null
-    
-    // Get available model name
-    const modelName = await getAvailableModelName(apiKey)
-    
-    // Try SDK first
     try {
-      const model = genAI.getGenerativeModel({ model: modelName })
-      const result = await model.generateContent(definitionPrompt)
-      const response = await result.response
-      const text = response.text()
-      
-      try {
-        content = JSON.parse(text)
-      } catch {
-        const jsonMatch = text.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/) || text.match(/(\{[\s\S]*\})/)
-        if (jsonMatch) {
-          content = JSON.parse(jsonMatch[1])
-        }
-      }
-    } catch (sdkError: any) {
-      console.error('SDK Error:', sdkError.message)
-      lastError = sdkError
-      
-      // Fallback: Try direct REST API call with v1 (not v1beta)
-      const modelsToTry = [modelName, 'gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro']
-      
-      for (const tryModel of modelsToTry) {
-        try {
-          const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1/models/${tryModel}:generateContent?key=${apiKey}`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                contents: [{
-                  parts: [{
-                    text: definitionPrompt
-                  }]
-                }]
-              })
-            }
-          )
-
-          if (response.ok) {
-            const data = await response.json()
-            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
-            
-            if (text) {
-              try {
-                content = JSON.parse(text)
-              } catch {
-                const jsonMatch = text.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/) || text.match(/(\{[\s\S]*\})/)
-                if (jsonMatch) {
-                  content = JSON.parse(jsonMatch[1])
-                }
-              }
-              
-              if (content) {
-                console.log(`Successfully used model: ${tryModel}`)
-                break
-              }
-            }
-          } else {
-            const errorText = await response.text()
-            console.log(`Model ${tryModel} failed: ${response.status}`)
-            if (tryModel === modelsToTry[modelsToTry.length - 1]) {
-              // Last model failed
-              throw new Error(`API Error: ${response.status} - ${errorText}`)
-            }
-          }
-        } catch (restError: any) {
-          if (tryModel === modelsToTry[modelsToTry.length - 1]) {
-            lastError = restError
-          }
-          continue
-        }
+      content = JSON.parse(text)
+    } catch {
+      // Try to extract JSON from markdown code blocks or plain text
+      const jsonMatch = text.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/) || text.match(/(\{[\s\S]*\})/)
+      if (jsonMatch) {
+        content = JSON.parse(jsonMatch[1])
+      } else {
+        throw new Error('Failed to parse JSON response from DeepSeek')
       }
     }
 
     if (!content) {
-      const errorMsg = lastError?.message || 'Failed to generate content'
-      return NextResponse.json(
-        { 
-          error: errorMsg,
-          details: 'Please verify your API key is valid and has access to Gemini models. Check available models at: http://localhost:3000/api/list-models'
-        },
-        { status: 500 }
-      )
+      throw new Error('Failed to generate content')
     }
 
-    // Image generation removed - no imageUrl needed
     return NextResponse.json({
       word: query,
       definition: content.definition || 'Definition not available',
@@ -177,7 +100,7 @@ Be concise, lively, and get straight to the point. No greetings or fillers. Alwa
     return NextResponse.json(
       { 
         error: error.message || 'Failed to generate dictionary entry',
-        details: 'Please check your API key and try again'
+        details: 'Please check your DeepSeek API key and try again'
       },
       { status: 500 }
     )

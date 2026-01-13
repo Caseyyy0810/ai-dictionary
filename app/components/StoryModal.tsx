@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { X, Loader2 } from 'lucide-react'
 import { NotebookEntry } from '../types'
+import ClickableText from './ClickableText'
 
 interface StoryModalProps {
   entries: NotebookEntry[]
@@ -88,9 +89,13 @@ export default function StoryModal({
                   Story ({targetLanguage})
                 </h3>
                 <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6">
-                  <p className="text-gray-800 leading-relaxed whitespace-pre-line">
-                    {story}
-                  </p>
+                  <ClickableText
+                    text={story}
+                    sourceLanguage={targetLanguage}
+                    targetLanguage={targetLanguage}
+                    nativeLanguage={nativeLanguage}
+                    className="text-gray-800 leading-relaxed whitespace-pre-line"
+                  />
                 </div>
               </div>
               <div>

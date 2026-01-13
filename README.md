@@ -24,10 +24,10 @@ npm install
 
 2. Create a `.env.local` file in the root directory:
 ```
-GOOGLE_AI_API_KEY=your_google_ai_api_key_here
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
 ```
 
-   Get your Google AI API key from: https://makersuite.google.com/app/apikey
+   Get your DeepSeek API key from: https://platform.deepseek.com/api_keys
 
 3. Run the development server:
 ```bash
@@ -41,8 +41,7 @@ npm run dev
 - **Next.js 14** - React framework
 - **TypeScript** - Type safety
 - **Tailwind CSS** - Styling
-- **Google Generative AI (Gemini)** - AI-powered features for text generation
-- **Unsplash API** - Free images for visual learning
+- **DeepSeek API** - AI-powered features for text generation
 - **Web Speech API** - Browser-based text-to-speech for pronunciation
 - **Framer Motion** - Animations
 - **Lucide React** - Icons
@@ -59,8 +58,7 @@ npm run dev
 
 ## Notes
 
-- Requires a Google AI API key (free tier available)
-- Get your API key from: https://makersuite.google.com/app/apikey
+- Requires a DeepSeek API key
+- Get your API key from: https://platform.deepseek.com/api_keys
 - Audio pronunciation uses browser's Web Speech API (no API key needed)
-- Images are provided by Unsplash (free service)
 - Notebook data is stored in browser localStorage

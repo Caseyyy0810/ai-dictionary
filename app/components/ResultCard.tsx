@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Volume2, BookOpen, Loader2 } from 'lucide-react'
 import { DictionaryEntry } from '../types'
+import ClickableText from './ClickableText'
 
 interface ResultCardProps {
   entry: DictionaryEntry
@@ -97,7 +98,13 @@ export default function ResultCard({
       {/* Definition */}
       <div className="bg-gradient-to-br from-primary-50 to-secondary-50 rounded-2xl p-6">
         <h3 className="text-lg font-bold text-gray-800 mb-2">Definition</h3>
-        <p className="text-gray-700 leading-relaxed">{entry.definition}</p>
+        <ClickableText
+          text={entry.definition}
+          sourceLanguage={nativeLanguage}
+          targetLanguage={targetLanguage}
+          nativeLanguage={nativeLanguage}
+          className="text-gray-700 leading-relaxed"
+        />
       </div>
 
       {/* Examples */}
@@ -109,7 +116,14 @@ export default function ResultCard({
             className="bg-gray-50 rounded-xl p-5 border-l-4 border-primary-500"
           >
             <div className="flex items-start gap-3 mb-2">
-              <p className="text-gray-800 text-lg flex-1">{example.sentence}</p>
+              <div className="text-gray-800 text-lg flex-1">
+                <ClickableText
+                  text={example.sentence}
+                  sourceLanguage={targetLanguage}
+                  targetLanguage={targetLanguage}
+                  nativeLanguage={nativeLanguage}
+                />
+              </div>
               <button
                 onClick={() => playPronunciation(example.sentence, `sentence-${idx}`)}
                 className="p-2 rounded-full bg-primary-100 hover:bg-primary-200 text-primary-600 transition-all flex-shrink-0"
@@ -130,7 +144,13 @@ export default function ResultCard({
       {/* Usage Note */}
       <div className="bg-yellow-50 border-2 border-yellow-200 rounded-2xl p-6">
         <h3 className="text-lg font-bold text-gray-800 mb-2">Usage Note</h3>
-        <p className="text-gray-700 leading-relaxed">{entry.usageNote}</p>
+        <ClickableText
+          text={entry.usageNote}
+          sourceLanguage={nativeLanguage}
+          targetLanguage={targetLanguage}
+          nativeLanguage={nativeLanguage}
+          className="text-gray-700 leading-relaxed"
+        />
       </div>
     </div>
   )
